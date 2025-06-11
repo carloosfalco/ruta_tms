@@ -1,4 +1,35 @@
+import streamlit as st
+import openrouteservice
+import requests
+import math
+from datetime import datetime, timedelta
+import folium
+from streamlit_folium import st_folium
+from PIL import Image
 
+# Configuración de la página
+st.set_page_config(page_title="Virosque TMS", page_icon="🚛", layout="wide")
+
+# Estilo personalizado
+st.markdown("""
+    <style>
+        body {
+            background-color: #f5f5f5;
+        }
+        .stButton>button {
+            background-color: #8D1B2D;
+            color: white;
+            border-radius: 6px;
+            padding: 0.6em 1em;
+            border: none;
+            font-weight: bold;
+        }
+        .stButton>button:hover {
+            background-color: #a7283d;
+            color: white;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 # API de OpenRouteService
 api_key = "5b3ce3597851110001cf6248ec3aedee3fa14ae4b1fd1b2440f2e589"
