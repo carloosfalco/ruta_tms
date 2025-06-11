@@ -5,17 +5,13 @@ import math
 from datetime import datetime, timedelta
 import folium
 from streamlit_folium import st_folium
-from PIL import Image
 
-# Configuración de la página
+# Configurar página
 st.set_page_config(page_title="Virosque TMS", page_icon="🚛", layout="wide")
 
 # Estilo personalizado
 st.markdown("""
     <style>
-        body {
-            background-color: #f5f5f5;
-        }
         .stButton>button {
             background-color: #8D1B2D;
             color: white;
@@ -31,11 +27,25 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# API de OpenRouteService
+# Encabezado con logo y título alineados
+col_logo, col_titulo = st.columns([1, 3])
+with col_logo:
+    st.image("logo-virosque2-01.png", width=200)
+with col_titulo:
+    st.markdown("<h1 style='color:#8D1B2D;'>Virosque TMS</h1>", unsafe_allow_html=True)
+    st.markdown("### La excelencia es el camino — planificador de rutas para camiones")
+
+# API Key de OpenRouteService
 api_key = "5b3ce3597851110001cf6248e38c54a14f3b4a1b85d665c9694e9874"
 client = openrouteservice.Client(key=api_key)
 
-# Geocodificación
+# Función para mostrar horas y minutos
+def horas_y_minutos(valor_horas):
+    horas = int(valor_horas)
+    minutos = int(round((valor_horas - horas) * 60))
+    return f"{horas}h {minutos:02d}min"
+
+# Función de geolocalización robusta
 def geocode(direccion):
     url = "https://api.openrouteservice.org/geocode/search"
     params = {
@@ -44,115 +54,73 @@ def geocode(direccion):
         "boundary.country": "ES",
         "size": 1
     }
-    r = requests.get(url, params=params)
-    data = r.json()
-    if data["features"]:
-        coord = data["features"][0]["geometry"]["coordinates"]
-        label = data["features"][0]["properties"]["label"]
-        return coord, label
-    else:
-        return None, None
+    try:
+        r = requests.get(url, params=params)
+        r.raise_for_status()
+        data = r.json()
+        if "features" in data and data["features"]:
+            coord = data["features"][0]["geometry"]["coordinates"]
+            return coord
+    except:
+        return None
 
-# Conversión de horas decimales a texto
-def horas_y_minutos(valor_horas):
-    horas = int(valor_horas)
-    minutos = int(round((valor_horas - horas) * 60))
-    return f"{horas}h {minutos:02d}min"
-
-# Logo y encabezado
-logo = Image.open("logo-virosque2-01.png")
-st.image(logo, width=250)
-st.markdown("<h1 style='color:#8D1B2D;'>TMS</h1>", unsafe_allow_html=True)
-st.markdown("### Planificador de rutas para camiones", unsafe_allow_html=True)
-
-# Entradas del usuario
-col1, col2, col3 = st.columns(3)
-with col1:
-    origen = st.text_input("📍 Origen", value="Valencia, España")
-with col2:
-    destino = st.text_input("🏁 Destino", value="Madrid, España")
-with col3:
-    hora_salida_str = st.time_input("🕒 Hora de salida", value=datetime.strptime("08:00", "%H:%M")).strftime("%H:%M")
-
-# Paradas intermedias
+# Entradas
+origen = st.text_input("📍 Ciudad de origen", "Valencia, España")
+destino = st.text_input("🏁 Ciudad de destino", "Madrid, España")
+hora_salida_str = st.time_input("🕒 Hora de salida", value=datetime.strptime("08:00", "%H:%M")).strftime("%H:%M")
 stops = st.text_area("➕ Paradas intermedias (una por línea)", placeholder="Ej: Albacete, España\nCuenca, España")
 
-# Botón de acción
+# Botón
 if st.button("🔍 Calcular Ruta"):
-    st.session_state["calcular"] = True
-
-# Cálculo principal
-if st.session_state.get("calcular"):
-    coord_origen, _ = geocode(origen)
-    coord_destino, _ = geocode(destino)
-
-    stops_list = []
-    if stops.strip():
-        for parada in stops.strip().split("\n"):
-            coord, _ = geocode(parada)
-            if coord:
-                stops_list.append(coord)
-            else:
-                st.warning(f"❌ No se pudo geolocalizar: {parada}")
+    coord_origen = geocode(origen)
+    coord_destino = geocode(destino)
+    paradas = [geocode(p.strip()) for p in stops.strip().split("\n") if p.strip()] if stops.strip() else []
 
     if not coord_origen or not coord_destino:
-        st.error("❌ No se pudo geolocalizar el origen o destino.")
+        st.error("❌ Error en geolocalización de origen o destino")
         st.stop()
 
-    coords_totales = [coord_origen] + stops_list + [coord_destino]
+    for i, p in enumerate(paradas):
+        if not p:
+            st.warning(f"❌ No se pudo geolocalizar la parada {i+1}")
+            st.stop()
+
+    coordenadas = [coord_origen] + paradas + [coord_destino]
 
     try:
-        ruta = client.directions(
-            coordinates=coords_totales,
-            profile='driving-hgv',
-            format='geojson'
-        )
+        ruta = client.directions(coordinates=coordenadas, profile='driving-hgv', format='geojson')
     except openrouteservice.exceptions.ApiError as e:
         st.error(f"❌ Error al calcular la ruta: {e}")
         st.stop()
 
-    # Cálculo de tiempos y distancias
     segmentos = ruta['features'][0]['properties']['segments']
-    distancia_total = sum(seg["distance"] for seg in segmentos)
-    duracion_total = sum(seg["duration"] for seg in segmentos)
-
-    distancia_km = distancia_total / 1000
-    duracion_horas = duracion_total / 3600
+    distancia_km = sum(seg['distance'] for seg in segmentos) / 1000
+    duracion_horas = sum(seg['duration'] for seg in segmentos) / 3600
     descansos = math.floor(duracion_horas / 4.5)
     tiempo_total_h = duracion_horas + descansos * 0.75
-
-    # Si se excede la jornada de 13h, añadir descanso obligatorio de 11h
     descanso_diario_h = 11 if tiempo_total_h > 13 else 0
-    tiempo_total_real_h = tiempo_total_h + descanso_diario_h
-    hora_salida = datetime.strptime(hora_salida_str, "%H:%M")
-    hora_llegada = hora_salida + timedelta(hours=tiempo_total_real_h)
-
-    # Texto
-    tiempo_conduccion_txt = horas_y_minutos(duracion_horas)
-    tiempo_total_txt = horas_y_minutos(tiempo_total_h)
+    tiempo_total_real = tiempo_total_h + descanso_diario_h
+    hora_llegada = datetime.strptime(hora_salida_str, "%H:%M") + timedelta(hours=tiempo_total_real)
 
     # Mostrar métricas
-    st.markdown("### 📊 Datos de la ruta")
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("🛣 Distancia", f"{distancia_km:.2f} km")
-    col2.metric("🕓 Conducción", tiempo_conduccion_txt)
-    col3.metric("⏱ Total (con descansos)", tiempo_total_txt)
+    col2.metric("🕓 Conducción", horas_y_minutos(duracion_horas))
+    col3.metric("⏱ Total (descansos)", horas_y_minutos(tiempo_total_h))
     col4.metric("📅 Llegada estimada", hora_llegada.strftime("%H:%M"))
 
     if tiempo_total_h > 13:
-        st.warning(f"⚠️ El viaje excede la jornada máxima (13h). Se ha añadido un descanso obligatorio de 11h.\n⏳ Tiempo total ajustado: {horas_y_minutos(tiempo_total_real_h)}")
+        st.warning(f"⚠️ Se añadió un descanso diario de 11h.\nTotal jornada: {horas_y_minutos(tiempo_total_real)}")
     else:
-        st.success("🟢 El viaje puede completarse en una sola jornada de trabajo.")
+        st.success("🟢 Ruta realizable en una jornada de trabajo")
 
-    # Mapa interactivo
-    linea = ruta["features"][0]["geometry"]["coordinates"]
-    linea_latlon = [[p[1], p[0]] for p in linea]
-    m = folium.Map(location=linea_latlon[0], zoom_start=6)
+    # Mapa
+    coords_mapa = ruta['features'][0]['geometry']['coordinates']
+    coords_latlon = [[p[1], p[0]] for p in coords_mapa]
+    m = folium.Map(location=coords_latlon[0], zoom_start=6)
     folium.Marker(location=[coord_origen[1], coord_origen[0]], tooltip="📍 Origen").add_to(m)
-    for idx, parada in enumerate(stops_list):
-        folium.Marker(location=[parada[1], parada[0]], tooltip=f"Parada {idx + 1}").add_to(m)
+    for i, p in enumerate(paradas):
+        folium.Marker(location=[p[1], p[0]], tooltip=f"Parada {i+1}").add_to(m)
     folium.Marker(location=[coord_destino[1], coord_destino[0]], tooltip="🏁 Destino").add_to(m)
-    folium.PolyLine(linea_latlon, color="blue", weight=5).add_to(m)
-
-    st.markdown("### 🗺️ Ruta estimada en mapa:")
+    folium.PolyLine(coords_latlon, color="blue", weight=5).add_to(m)
     st_folium(m, width=1200, height=500)
