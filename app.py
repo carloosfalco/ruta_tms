@@ -5,6 +5,7 @@ import math
 from datetime import datetime, timedelta
 import folium
 from streamlit_folium import st_folium
+from PIL import Image
 
 # Configuración de la página
 st.set_page_config(page_title="Virosque TMS", page_icon="🚛", layout="wide")
@@ -30,31 +31,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Cabecera: Logo centrado, texto alineado a la izquierda
-col_logo, col_titulo = st.columns([1, 3])
-with col_logo:
-    st.markdown(
-        """
-        <div style="text-align: center;">
-            <img src="logo-virosque2-01.png" alt="Logo Virosque" width="200">
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-with col_titulo:
-    st.markdown("<h1 style='color:#8D1B2D;'>Virosque TMS</h1>", unsafe_allow_html=True)
-    st.markdown("### La excelencia es el camino — planificador de rutas para camiones", unsafe_allow_html=True)
-
-# API Key de OpenRouteService
+# API de OpenRouteService
 api_key = "5b3ce3597851110001cf6248e38c54a14f3b4a1b85d665c9694e9874"
 client = openrouteservice.Client(key=api_key)
-
-# Función para convertir horas decimales a texto
-def horas_y_minutos(valor_horas):
-    horas = int(valor_horas)
-    minutos = int(round((valor_horas - horas) * 60))
-    return f"{horas}h {minutos:02d}min"
 
 # Geocodificación
 def geocode(direccion):
@@ -74,6 +53,18 @@ def geocode(direccion):
     else:
         return None, None
 
+# Conversión de horas decimales a texto
+def horas_y_minutos(valor_horas):
+    horas = int(valor_horas)
+    minutos = int(round((valor_horas - horas) * 60))
+    return f"{horas}h {minutos:02d}min"
+
+# Logo y encabezado
+logo = Image.open("logo-virosque2-01.png")
+st.image(logo, width=250)
+st.markdown("<h1 style='color:#8D1B2D;'>Virosque TMS</h1>", unsafe_allow_html=True)
+st.markdown("### La excelencia es el camino — planificador de rutas para camiones", unsafe_allow_html=True)
+
 # Entradas del usuario
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -86,8 +77,12 @@ with col3:
 # Paradas intermedias
 stops = st.text_area("➕ Paradas intermedias (una por línea)", placeholder="Ej: Albacete, España\nCuenca, España")
 
-# Botón para calcular
+# Botón de acción
 if st.button("🔍 Calcular Ruta"):
+    st.session_state["calcular"] = True
+
+# Cálculo principal
+if st.session_state.get("calcular"):
     coord_origen, _ = geocode(origen)
     coord_destino, _ = geocode(destino)
 
@@ -116,7 +111,7 @@ if st.button("🔍 Calcular Ruta"):
         st.error(f"❌ Error al calcular la ruta: {e}")
         st.stop()
 
-    # Cálculo de segmentos
+    # Cálculo de tiempos y distancias
     segmentos = ruta['features'][0]['properties']['segments']
     distancia_total = sum(seg["distance"] for seg in segmentos)
     duracion_total = sum(seg["duration"] for seg in segmentos)
@@ -126,17 +121,17 @@ if st.button("🔍 Calcular Ruta"):
     descansos = math.floor(duracion_horas / 4.5)
     tiempo_total_h = duracion_horas + descansos * 0.75
 
-    # Ajuste por jornada máxima
+    # Si se excede la jornada de 13h, añadir descanso obligatorio de 11h
     descanso_diario_h = 11 if tiempo_total_h > 13 else 0
     tiempo_total_real_h = tiempo_total_h + descanso_diario_h
     hora_salida = datetime.strptime(hora_salida_str, "%H:%M")
     hora_llegada = hora_salida + timedelta(hours=tiempo_total_real_h)
 
-    # Conversión a texto
+    # Texto
     tiempo_conduccion_txt = horas_y_minutos(duracion_horas)
     tiempo_total_txt = horas_y_minutos(tiempo_total_h)
 
-    # Métricas
+    # Mostrar métricas
     st.markdown("### 📊 Datos de la ruta")
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("🛣 Distancia", f"{distancia_km:.2f} km")
