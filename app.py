@@ -30,19 +30,21 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Logo centrado
-st.markdown(
-    """
-    <div style="text-align: center;">
-        <img src="logo-virosque2-01.png" alt="Logo Virosque" width="250">
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+# Cabecera: Logo centrado, texto alineado a la izquierda
+col_logo, col_titulo = st.columns([1, 3])
+with col_logo:
+    st.markdown(
+        """
+        <div style="text-align: center;">
+            <img src="logo-virosque2-01.png" alt="Logo Virosque" width="200">
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-# Título centrado
-st.markdown("<h1 style='text-align: left; color:#8D1B2D;'>TMS</h1>", unsafe_allow_html=True)
-st.markdown("<h4 style='text-align: left;'>Planificador de rutas para camiones</h4>", unsafe_allow_html=True)
+with col_titulo:
+    st.markdown("<h1 style='color:#8D1B2D;'>Virosque TMS</h1>", unsafe_allow_html=True)
+    st.markdown("### La excelencia es el camino — planificador de rutas para camiones", unsafe_allow_html=True)
 
 # API Key de OpenRouteService
 api_key = "5b3ce3597851110001cf6248e38c54a14f3b4a1b85d665c9694e9874"
@@ -159,6 +161,3 @@ if st.button("🔍 Calcular Ruta"):
 
     st.markdown("### 🗺️ Ruta estimada en mapa:")
     st_folium(m, width=1200, height=500)
-
-
-
