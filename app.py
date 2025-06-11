@@ -44,14 +44,23 @@ def geocode(direccion):
         "boundary.country": "ES",
         "size": 1
     }
-    r = requests.get(url, params=params)
-    data = r.json()
-    if data["features"]:
-        coord = data["features"][0]["geometry"]["coordinates"]
-        label = data["features"][0]["properties"]["label"]
-        return coord, label
-    else:
-        return None, None
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        if "features" in data and data["features"]:
+            coord = data["features"][0]["geometry"]["coordinates"]
+            return coord
+        else:
+            st.error(f"❌ No se encontraron resultados para: {direccion}")
+            return None
+    except requests.exceptions.HTTPError as http_err:
+        st.error(f"❌ Error HTTP geocodificando '{direccion}': {http_err}")
+        return None
+    except Exception as e:
+        st.error(f"❌ Error general geocodificando '{direccion}': {e}")
+        return None
 
 # Conversión de horas decimales a texto
 def horas_y_minutos(valor_horas):
