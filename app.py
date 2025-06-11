@@ -41,8 +41,8 @@ st.markdown(
 )
 
 # Título centrado
-st.markdown("<h1 style='text-align: center; color:#8D1B2D;'>TMS</h1>", unsafe_allow_html=True)
-st.markdown("<h4 style='text-align: center;'>Planificador de rutas para camiones</h4>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: left; color:#8D1B2D;'>TMS</h1>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: left;'>Planificador de rutas para camiones</h4>", unsafe_allow_html=True)
 
 # API Key de OpenRouteService
 api_key = "5b3ce3597851110001cf6248e38c54a14f3b4a1b85d665c9694e9874"
